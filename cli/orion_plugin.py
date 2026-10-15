@@ -882,6 +882,24 @@ def cmd_examples(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_scan(args: argparse.Namespace) -> int:
+    folder = Path(args.path or ".").expanduser().resolve()
+    # Prefer vendored host scanner when running inside Orion tree
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[4]))  # …/app
+        from orion_backend.modules.plugins.security_scan import scan_path, report_to_text
+
+        report = scan_path(
+            folder,
+            expected_sha256=args.sha256 or "",
+            require_defender=bool(args.require_defender),
+        )
+        print(report_to_text(report))
+        return 0 if report.get("ok") else 2
+    except Exception as exc:
+        return _die(f"scan unavailable: {exc}")
+
+
 def cmd_call(args: argparse.Namespace) -> int:
     host = (args.host or os.environ.get("ORION_HOST") or "http://127.0.0.1:4310").rstrip("/")
     tool = (args.tool or "").strip()
@@ -1029,6 +1047,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     ic.set_defaults(func=cmd_init_ci)
 
     sub.add_parser("examples", help="list official example plugins").set_defaults(func=cmd_examples)
+
+    sc = sub.add_parser("scan", help="security scan (Defender + AST + archive)")
+    sc.add_argument("path", nargs="?", default=".")
+    sc.add_argument("--sha256", default="")
+    sc.add_argument("--require-defender", action="store_true")
+    sc.set_defaults(func=cmd_scan)
 
     ca = sub.add_parser("call", help="call a tool on a running Orion plugin")
     ca.add_argument("tool", help="tool name or plugin__id__tool")

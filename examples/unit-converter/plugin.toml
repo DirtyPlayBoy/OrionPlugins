@@ -1,0 +1,18 @@
+[plugin]
+id = "unit-converter"
+name = "Конвертер единиц"
+version = "0.1.0"
+description = "Конвертация длины, массы, температуры и объёма для ассистента Orion."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]

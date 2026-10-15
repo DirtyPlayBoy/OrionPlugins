@@ -1,0 +1,27 @@
+[plugin]
+id = "calculator"
+name = "Калькулятор"
+version = "0.1.0"
+description = "Считает выражения для ассистента и открывает страницу «Калькулятор» в Orion."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+ui_contributions = true
+
+[permissions]
+
+[[ui.contributions]]
+id = "calculator-page"
+slot = "page.custom"
+host_page = "pageCalculator"
+label = "Калькулятор"
+icon = "calc"
+transparent = true

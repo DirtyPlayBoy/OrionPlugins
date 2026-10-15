@@ -1,0 +1,18 @@
+[plugin]
+id = "quick-notes"
+name = "Быстрые заметки"
+version = "0.1.0"
+description = "Локальные короткие заметки для ассистента: сохранить, найти, перечислить."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]

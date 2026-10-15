@@ -1,9 +1,24 @@
-# CLI
+# CLI `orion-plugin`
 
 ```bash
-python cli/orion_plugin.py new <name> [--author ...] [--dir ...]
-python cli/orion_plugin.py check <folder>
-python cli/orion_plugin.py --version
+python cli/orion_plugin.py new my-tool --author "You" --template tool
+python cli/orion_plugin.py check . --strict
+python cli/orion_plugin.py test . --call
+python cli/orion_plugin.py pack .
+python cli/orion_plugin.py submit . --repo Owner/Name
 ```
 
-Optional wrapper: add `cli/` to `PATH` or `pipx install` later.
+Inside the Orion tree:
+
+```bash
+python -m orion_backend.modules.plugins.devtools …
+```
+
+| Command | Purpose |
+|---------|---------|
+| `new` | Scaffold (`tool` / `ui-page` / `blank`) |
+| `check` | Validate `plugin.toml` |
+| `test` | Mock host conformance |
+| `pack` | Build `.orionplugin` + sha256 |
+| `submit` | Generate orion-registry PR files |
+| `doctor` | Environment diagnostics |

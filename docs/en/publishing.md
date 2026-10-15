@@ -1,9 +1,13 @@
 # Publishing
 
-1. Package folder as `<id>-<version>-windows-x64.orionplugin` (zip, `plugin.toml` at root).
-2. SHA-256 the artifact.
-3. GitHub Release on your public repo.
-4. PR to [orion-registry](https://github.com/DirtyPlayBoy/orion-registry):
-   - `plugins/<id>/plugin.json`
-   - `plugins/<id>/versions/<semver>.json` with `url`, `sha256`, `size`
-5. CI rebuilds `registry/v1/index.json`. First submission is human-reviewed.
+```bash
+python cli/orion_plugin.py pack .
+python cli/orion_plugin.py submit . --repo Owner/your-plugin
+```
+
+1. GitHub Release + upload `.orionplugin`
+2. Copy `submit/plugins/<id>/` into [orion-registry](https://github.com/DirtyPlayBoy/orion-registry)
+3. `python tools/build-index.py && python tools/validate.py`
+4. Open a PR
+
+Never invent digests. Never commit binaries to the registry.

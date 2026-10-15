@@ -1,22 +1,25 @@
 # OrionPlugins
 
-SDK, CLI и примеры плагинов для **Orion** — AI desktop assistant.
+SDK, CLI и примеры плагинов для **Orion**.
 
 | | |
 |---|---|
-| SDK (Python) | [`sdk/python`](sdk/python) |
+| SDK | [`sdk/python`](sdk/python) (`orion-plugin-sdk` 0.2) |
 | CLI | [`cli/orion_plugin.py`](cli/orion_plugin.py) |
 | Examples | [`examples/`](examples) |
-| Docs EN | [`docs/en`](docs/en) |
-| Docs RU | [`docs/ru`](docs/ru) |
+| Docs | [`docs/en`](docs/en) · [`docs/ru`](docs/ru) |
 | Catalogue | [orion-registry](https://github.com/DirtyPlayBoy/orion-registry) |
+| AI map | [`AGENTS.md`](AGENTS.md) |
 
 ## 5-minute plugin
 
 ```bash
-python cli/orion_plugin.py new my-tool --author "Your Name" --dir ./my-tool
 pip install -e sdk/python
-# In Orion: Plugins → Development → enable developer mode → Load folder
+python cli/orion_plugin.py new my-tool --author "You"
+python cli/orion_plugin.py test ./my-tool --call
+# Orion → Plugins → Development → Load folder
+python cli/orion_plugin.py pack ./my-tool
+python cli/orion_plugin.py submit ./my-tool --repo You/my-tool
 ```
 
 ## Architecture
@@ -28,8 +31,8 @@ Orion backend ──spawn──► plugin process
        └────── loopback ──────┘
 ```
 
-Manifest: `plugin.toml`. Tools appear in the agent as `plugin__<id>__<tool>`.
+Tools appear as `plugin__<id>__<tool>`. Host pages unlock via `[[ui.contributions]]` + `host_page`.
 
 ## License
 
-MIT — see individual packages.
+MIT

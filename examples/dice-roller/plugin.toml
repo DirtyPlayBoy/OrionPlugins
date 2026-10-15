@@ -1,0 +1,18 @@
+[plugin]
+id = "dice-roller"
+name = "Dice Roller"
+version = "0.1.0"
+description = "Roll dice and flip coins for the Orion assistant."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]

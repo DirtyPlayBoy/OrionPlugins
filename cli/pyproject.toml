@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "orion-plugin-cli"
+version = "0.3.0"
+description = "Scaffold, test, pack and submit Orion plugins"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Orion Team" }]
+dependencies = []
+
+[project.scripts]
+orion-plugin = "orion_plugin:main"
+
+[tool.setuptools]
+py-modules = ["orion_plugin"]

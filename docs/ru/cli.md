@@ -1,15 +1,21 @@
 # CLI `orion-plugin`
 
 ```bash
-python cli/orion_plugin.py --version
-python cli/orion_plugin.py templates
-python cli/orion_plugin.py doctor
-python cli/orion_plugin.py new my-tool --author "Вы" --template tool
-python cli/orion_plugin.py check . --strict
-python cli/orion_plugin.py test . --call
-python cli/orion_plugin.py pack .
-python cli/orion_plugin.py submit . --repo Owner/Name
+pip install -e cli          # → команда orion-plugin
+orion-plugin --version
+orion-plugin templates
+orion-plugin doctor
+orion-plugin new my-tool --author "Вы" --template tool
+orion-plugin check . --strict
+orion-plugin test . --call
+orion-plugin dev .                    # Orion на :4310
+orion-plugin dev . --watch            # hot reload
+orion-plugin init-ci .
+orion-plugin pack .
+orion-plugin submit . --repo Owner/Name
 ```
+
+Без установки: `python cli/orion_plugin.py …`
 
 Алиас внутри Orion:
 
@@ -24,7 +30,9 @@ python -m orion_backend.modules.plugins.devtools …
 | `new` | Scaffold (`tool` / `ui-page` / `blank`) |
 | `check` | Валидация `plugin.toml` |
 | `test` | Mock-host: ready + health + tools |
+| `dev` | Загрузить папку в запущенный Orion (`--watch`) |
+| `init-ci` | GitHub Actions workflow для релиза |
 | `pack` | `.orionplugin` + sha256 в `.dist/` |
 | `submit` | Файлы PR для orion-registry в `submit/` |
-| `doctor` | Диагностика окружения |
+| `doctor` | Диагностика окружения (+ ping Orion) |
 | `templates` | Список шаблонов |

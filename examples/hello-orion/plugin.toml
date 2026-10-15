@@ -1,0 +1,18 @@
+[plugin]
+id = "hello-orion"
+name = "Hello Orion"
+version = "0.1.0"
+description = "Minimal first plugin — one tool that greets you. Start here."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]

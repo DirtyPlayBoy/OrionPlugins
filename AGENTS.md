@@ -10,12 +10,15 @@
 
 ```bash
 pip install -e sdk/python
-python cli/orion_plugin.py new my-tool --author "Name" --dir ./my-tool --template tool
-python cli/orion_plugin.py check ./my-tool --strict
-python cli/orion_plugin.py test ./my-tool --call
-# В Orion: Плагины → Разработка → режим разработчика → Загрузить папку
-python cli/orion_plugin.py pack ./my-tool
-python cli/orion_plugin.py submit ./my-tool --repo Owner/Name
+pip install -e cli          # → команда orion-plugin
+orion-plugin new my-tool --author "Name" --dir ./my-tool --template tool
+orion-plugin check ./my-tool --strict
+orion-plugin test ./my-tool --call
+orion-plugin dev ./my-tool              # Orion запущен (http://127.0.0.1:4310)
+# orion-plugin dev ./my-tool --watch    # hot reload
+orion-plugin init-ci ./my-tool          # GitHub Actions release
+orion-plugin pack ./my-tool
+orion-plugin submit ./my-tool --repo Owner/Name
 ```
 
 Внутри дерева Orion CLI также доступен как:
@@ -23,6 +26,15 @@ python cli/orion_plugin.py submit ./my-tool --repo Owner/Name
 ```bash
 python -m orion_backend.modules.plugins.devtools …
 ```
+
+## Примеры (one-click в Orion → Каталог)
+
+| id | что |
+|----|-----|
+| `hello-orion` | минимальный tool `hello` |
+| `dice-roller` | `roll_dice` / `flip_coin` |
+
+Ставятся без режима разработчика: **Плагины → Каталог → Установить пример**.
 
 ## Шаблоны
 
@@ -53,8 +65,8 @@ run(Plugin(tools=[hello]))
 
 ## Каталог
 
-1. `pack` → `.orionplugin` + sha256  
-2. GitHub Release  
+1. `init-ci` + `pack` → `.orionplugin` + sha256  
+2. GitHub Release (tag `<id>-v<ver>`)  
 3. `submit` → файлы для PR в https://github.com/DirtyPlayBoy/orion-registry  
 4. В registry: `python tools/build-index.py && python tools/validate.py`
 

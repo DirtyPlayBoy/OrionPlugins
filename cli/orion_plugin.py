@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.request import Request, urlopen
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 _ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RESERVED = {"orion-stt", "orion-tts", "orion-core", "orion-agent", "orion-voice"}
 KNOWN_CAPS = {
@@ -135,8 +135,13 @@ orion-plugin test .
 
 ## Load in Orion
 
-1. **Плагины → Разработка** → включите режим разработчика
-2. Укажите путь и нажмите **Загрузить**:
+One-shot (Orion must be running):
+
+```bash
+orion-plugin dev .
+```
+
+Or manually: **Плагины → Разработка** → режим разработчика → путь → **Загрузить**:
 
 ```
 {folder}
@@ -145,6 +150,7 @@ orion-plugin test .
 ## Publish
 
 ```bash
+orion-plugin init-ci .
 orion-plugin pack .
 orion-plugin submit . --repo YourName/your-plugin --tag {plugin_id}-v0.1.0
 ```
@@ -627,8 +633,152 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print("tomllib ok")
     except ImportError:
         print("tomllib FAIL — need Python 3.11+")
+    host = (args.host or os.environ.get("ORION_HOST") or "http://127.0.0.1:4310").rstrip("/")
+    try:
+        with urlopen(f"{host}/api/plugins/settings", timeout=2) as resp:
+            print(f"orion_host {host} ok ({resp.status})")
+    except Exception as exc:
+        print(f"orion_host {host} unreachable ({exc})")
     if args.path:
         return cmd_check(argparse.Namespace(path=args.path, strict=True))
+    return 0
+
+
+def _orion_api(host: str, method: str, path: str, body: Optional[dict] = None, timeout: float = 30.0) -> Any:
+    url = host.rstrip("/") + path
+    data = None
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        data = json.dumps(body, ensure_ascii=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = Request(url, data=data, headers=headers, method=method)
+    with urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def cmd_dev(args: argparse.Namespace) -> int:
+    """Load (and optionally watch) a plugin folder into a running Orion."""
+    folder = Path(args.path or ".").expanduser().resolve()
+    if not (folder / "plugin.toml").is_file():
+        return _die(f"plugin.toml missing in {folder}")
+    if cmd_check(argparse.Namespace(path=str(folder), strict=False)) != 0:
+        return 1
+    host = (args.host or os.environ.get("ORION_HOST") or "http://127.0.0.1:4310").rstrip("/")
+    try:
+        result = _orion_api(
+            host,
+            "POST",
+            "/api/plugins/dev/load",
+            {
+                "folder": str(folder),
+                "enableDeveloperMode": True,
+                "source": "sideloaded",
+            },
+        )
+    except Exception as exc:
+        return _die(
+            f"cannot reach Orion at {host}: {exc}\n"
+            "Start Orion (Запуск Orion.bat) and retry."
+        )
+    plugin = result.get("plugin") if isinstance(result, dict) else None
+    pid = (plugin or {}).get("id") if isinstance(plugin, dict) else "?"
+    _ok(f"loaded {pid} into {host}")
+    if not args.watch:
+        print(folder)
+        return 0
+
+    _ok(f"watching {folder} (Ctrl+C to stop)")
+    mtimes: Dict[str, float] = {}
+
+    def snapshot() -> Dict[str, float]:
+        out: Dict[str, float] = {}
+        for path in folder.rglob("*"):
+            if not path.is_file():
+                continue
+            if any(p in {".git", ".venv", "__pycache__", ".dist", "submit"} for p in path.parts):
+                continue
+            if path.suffix in {".pyc", ".orionplugin"}:
+                continue
+            try:
+                out[str(path)] = path.stat().st_mtime
+            except OSError:
+                pass
+        return out
+
+    mtimes = snapshot()
+    try:
+        while True:
+            time.sleep(max(0.4, float(args.interval or 1.0)))
+            now = snapshot()
+            if now != mtimes:
+                mtimes = now
+                print("change detected — reloading…")
+                try:
+                    _orion_api(
+                        host,
+                        "POST",
+                        "/api/plugins/dev/load",
+                        {
+                            "folder": str(folder),
+                            "enableDeveloperMode": True,
+                            "source": "sideloaded",
+                        },
+                    )
+                    _ok(f"reloaded {pid}")
+                except Exception as exc:
+                    print(f"WARN: reload failed: {exc}", file=sys.stderr)
+    except KeyboardInterrupt:
+        print("\nstopped watching")
+        return 0
+
+
+def cmd_init_ci(args: argparse.Namespace) -> int:
+    folder = Path(args.path or ".").expanduser().resolve()
+    if not (folder / "plugin.toml").is_file() and not args.force:
+        return _die("plugin.toml missing — run from a plugin folder (or pass --force)")
+    wf_dir = folder / ".github" / "workflows"
+    wf_dir.mkdir(parents=True, exist_ok=True)
+    target = wf_dir / "orion-plugin-release.yml"
+    if target.exists() and not args.force:
+        return _die(f"{target} exists (pass --force)")
+    # Simpler, reliable workflow (no nested OrionPlugins assumption)
+    content = '''\
+name: Orion plugin release
+
+on:
+  push:
+    tags:
+      - "*-v*"
+  workflow_dispatch:
+
+jobs:
+  pack:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch Orion CLI
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path .ci | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/DirtyPlayBoy/OrionPlugins/main/cli/orion_plugin.py" -OutFile .ci/orion_plugin.py -UseBasicParsing
+      - name: Pack
+        run: python .ci/orion_plugin.py pack .
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: .dist/*.orionplugin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+'''
+    target.write_text(content, encoding="utf-8")
+    _ok(f"wrote {target}")
+    print("Tag a release: git tag <id>-v0.1.0 && git push --tags")
     return 0
 
 
@@ -680,7 +830,20 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     d = sub.add_parser("doctor", help="environment diagnostics")
     d.add_argument("path", nargs="?", default="")
+    d.add_argument("--host", default="", help="Orion HTTP base (default http://127.0.0.1:4310)")
     d.set_defaults(func=cmd_doctor)
+
+    dv = sub.add_parser("dev", help="load plugin into running Orion (optional --watch)")
+    dv.add_argument("path", nargs="?", default=".")
+    dv.add_argument("--host", default="", help="Orion HTTP base")
+    dv.add_argument("--watch", action="store_true", help="reload on file changes")
+    dv.add_argument("--interval", type=float, default=1.0, help="watch poll seconds")
+    dv.set_defaults(func=cmd_dev)
+
+    ic = sub.add_parser("init-ci", help="write GitHub Actions release workflow")
+    ic.add_argument("path", nargs="?", default=".")
+    ic.add_argument("--force", action="store_true")
+    ic.set_defaults(func=cmd_init_ci)
 
     args = p.parse_args(argv)
     return int(args.func(args) or 0)

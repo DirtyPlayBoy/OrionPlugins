@@ -287,7 +287,12 @@ def run(plugin: Plugin, argv: Optional[List[str]] = None) -> None:
             self.wfile.write(body)
 
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
-    sys.stdout.write(f"ORION_PLUGIN_READY port={port}\n")
+    # Host parser keys on "ORION_PLUGIN_READY" + "port="; extra fields are ignored.
+    ready = f"ORION_PLUGIN_READY port={port}"
+    if plugin_id:
+        ready += f" plugin_id={plugin_id}"
+    ready += f" tools={len(tools_by_name)}\n"
+    sys.stdout.write(ready)
     sys.stdout.flush()
     try:
         server.serve_forever(poll_interval=0.3)

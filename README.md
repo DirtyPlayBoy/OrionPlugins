@@ -5,7 +5,7 @@ SDK, CLI и примеры плагинов для **Orion**.
 | | |
 |---|---|
 | SDK | [`sdk/python`](sdk/python) (`orion-plugin-sdk` 0.2) |
-| CLI | [`cli/`](cli/) → `pip install -e cli` → `orion-plugin` |
+| CLI | [`cli/`](cli/) 0.4 → `pip install -e cli` → `orion-plugin` |
 | Examples | [`examples/`](examples) (`hello-orion`, `dice-roller`) |
 | Docs | [`docs/en`](docs/en) · [`docs/ru`](docs/ru) |
 | Catalogue | [orion-registry](https://github.com/DirtyPlayBoy/orion-registry) |
@@ -14,17 +14,17 @@ SDK, CLI и примеры плагинов для **Orion**.
 ## 5-minute plugin
 
 ```bash
-pip install -e sdk/python
-pip install -e cli
+pip install -e sdk/python && pip install -e cli
 orion-plugin new my-tool --author "You"
+# or: orion-plugin new my-copy --from hello-orion --author "You"
 orion-plugin test ./my-tool --call
-orion-plugin dev ./my-tool              # Orion running
-orion-plugin init-ci ./my-tool
-orion-plugin pack ./my-tool
+orion-plugin dev ./my-tool
+orion-plugin call hello --plugin my-tool
+orion-plugin init-ci ./my-tool && orion-plugin pack ./my-tool
 orion-plugin submit ./my-tool --repo You/my-tool
 ```
 
-В Orion без CLI: **Плагины → Каталог → Hello Orion → Установить пример**.
+В Orion без CLI: **Плагины → Каталог → Hello Orion → Установить пример**, затем клик по tool ▶.
 
 ## Architecture
 

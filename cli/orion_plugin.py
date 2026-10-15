@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.request import Request, urlopen
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 _ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RESERVED = {"orion-stt", "orion-tts", "orion-core", "orion-agent", "orion-voice"}
 KNOWN_CAPS = {
@@ -186,14 +186,20 @@ def _read_toml_simple(path: Path) -> Dict[str, Any]:
 
 def _find_sdk_path() -> Optional[Path]:
     here = Path(__file__).resolve()
+    candidates: List[Path] = []
     # OrionPlugins/cli/orion_plugin.py → ../sdk/python
-    cand = here.parents[1] / "sdk" / "python"
-    if (cand / "orion_plugin_sdk").is_dir():
-        return cand
-    # Orion tree: orion_backend/modules/plugins/devtools → orion_backend/vendor
-    vendor = here.parents[2] / "vendor"
-    if (vendor / "orion_plugin_sdk").is_dir():
-        return vendor
+    candidates.append(here.parents[1] / "sdk" / "python")
+    # Orion tree: …/modules/plugins/devtools → …/orion_backend/vendor
+    if len(here.parents) > 3:
+        candidates.append(here.parents[3] / "vendor")
+    if len(here.parents) > 2:
+        candidates.append(here.parents[2] / "vendor")
+    env = os.environ.get("ORION_PLUGIN_SDK", "").strip()
+    if env:
+        candidates.insert(0, Path(env))
+    for cand in candidates:
+        if (cand / "orion_plugin_sdk").is_dir():
+            return cand
     return None
 
 
@@ -201,10 +207,51 @@ def _find_sdk_path() -> Optional[Path]:
 # Commands
 # ---------------------------------------------------------------------------
 
+def _example_roots() -> List[Path]:
+    roots: List[Path] = []
+    here = Path(__file__).resolve()
+    # OrionPlugins/cli → ../examples
+    roots.append(here.parents[1] / "examples")
+    # Orion tree: …/plugins/devtools → …/app/plugins-examples
+    roots.append(here.parents[4] / "plugins-examples")
+    for env_key in ("ORION_PLUGINS_ROOT", "ORIONPLUGINS"):
+        val = os.environ.get(env_key, "").strip()
+        if val:
+            roots.append(Path(val) / "examples")
+    sibling = Path.home() / "Scripts" / "GITHUB" / "OrionPlugins" / "examples"
+    roots.append(sibling)
+    out: List[Path] = []
+    seen = set()
+    for r in roots:
+        try:
+            key = str(r.resolve()).lower()
+        except Exception:
+            key = str(r).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def _find_example(example_id: str) -> Optional[Path]:
+    want = _slug(example_id)
+    for root in _example_roots():
+        if not root.is_dir():
+            continue
+        for child in root.iterdir():
+            if not child.is_dir() or not (child / "plugin.toml").is_file():
+                continue
+            if child.name == want or child.name == example_id:
+                return child
+            raw = _read_toml_simple(child / "plugin.toml")
+            pid = str((raw.get("plugin") or {}).get("id") or "")
+            if pid == want:
+                return child
+    return None
+
+
 def cmd_new(args: argparse.Namespace) -> int:
-    template = (args.template or "tool").strip().lower()
-    if template not in TEMPLATES:
-        return _die(f"unknown template {template!r}; choose: {', '.join(TEMPLATES)}")
     name = args.name.strip()
     plugin_id = _slug(args.id or name)
     if not _ID_RE.match(plugin_id):
@@ -214,10 +261,68 @@ def cmd_new(args: argparse.Namespace) -> int:
     folder = Path(args.dir or plugin_id).expanduser().resolve()
     if folder.exists() and any(folder.iterdir()) and not args.force:
         return _die(f"folder not empty: {folder} (pass --force)")
-    folder.mkdir(parents=True, exist_ok=True)
 
     author = args.author or os.environ.get("ORION_PLUGIN_AUTHOR") or "Unknown"
     description = args.description or f"{name} — Orion plugin"
+    from_example = (args.from_example or "").strip()
+
+    if from_example:
+        src = _find_example(from_example)
+        if not src:
+            known = []
+            for root in _example_roots():
+                if root.is_dir():
+                    known.extend(c.name for c in root.iterdir() if (c / "plugin.toml").is_file())
+            return _die(
+                f"example {from_example!r} not found. Known: {', '.join(sorted(set(known)) or ['(none)'])}"
+            )
+        folder.mkdir(parents=True, exist_ok=True)
+        skip = {".git", ".venv", "__pycache__", ".dist", "submit", "node_modules"}
+        for path in src.rglob("*"):
+            if not path.is_file():
+                continue
+            if any(p in skip for p in path.parts):
+                continue
+            rel = path.relative_to(src)
+            dest = folder / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            text = path.read_text(encoding="utf-8", errors="replace")
+            # Best-effort rewrite of identity fields
+            text = text.replace(from_example, plugin_id)
+            src_raw = _read_toml_simple(src / "plugin.toml")
+            src_id = str((src_raw.get("plugin") or {}).get("id") or from_example)
+            src_name = str((src_raw.get("plugin") or {}).get("name") or "")
+            if src_id and src_id != plugin_id:
+                text = text.replace(src_id, plugin_id)
+            if src_name and src_name != name:
+                text = text.replace(src_name, name)
+            dest.write_text(text, encoding="utf-8")
+        # Force plugin.toml identity
+        toml_path = folder / "plugin.toml"
+        if toml_path.is_file():
+            body = toml_path.read_text(encoding="utf-8")
+            body = re.sub(r'(?m)^id\s*=\s*".*"', f'id = "{plugin_id}"', body, count=1)
+            body = re.sub(r'(?m)^name\s*=\s*".*"', f'name = "{name}"', body, count=1)
+            body = re.sub(r'(?m)^author\s*=\s*".*"', f'author = "{author.replace(chr(34), chr(39))}"', body, count=1)
+            if args.description:
+                body = re.sub(
+                    r'(?m)^description\s*=\s*".*"',
+                    f'description = "{description.replace(chr(34), chr(39))}"',
+                    body,
+                    count=1,
+                )
+            toml_path.write_text(body, encoding="utf-8")
+        print(f"created {folder}")
+        print(f"from={from_example}")
+        print(folder)
+        print("next: orion-plugin check . && orion-plugin test . --call && orion-plugin dev .")
+        return 0
+
+    template = (args.template or "tool").strip().lower()
+    if template not in TEMPLATES:
+        return _die(f"unknown template {template!r}; choose: {', '.join(TEMPLATES)}")
+    folder.mkdir(parents=True, exist_ok=True)
+
     tool_name = plugin_id.replace("-", "_")
     snake = tool_name
     tmpl = TEMPLATES[template]
@@ -266,7 +371,7 @@ def cmd_new(args: argparse.Namespace) -> int:
     print(f"created {folder}")
     print(f"template={template}")
     print(folder)
-    print("next: pip install -e <OrionPlugins>/sdk/python && orion-plugin check . && orion-plugin test .")
+    print("next: orion-plugin check . && orion-plugin test . --call && orion-plugin dev .")
     return 0
 
 
@@ -317,15 +422,26 @@ def cmd_check(args: argparse.Namespace) -> int:
         if not any((folder / str(a)).is_file() for a in args_list if isinstance(a, str)):
             errors.append("no entry .py found")
 
+    warnings: List[str] = []
+    runtimes = entry.get("runtimes") or []
+    if not runtimes:
+        warnings.append('entry.runtimes empty — declare ["python"] or ["node"]')
+    if not (folder / "README.md").is_file():
+        warnings.append("README.md missing — recommended for catalogue")
+    if isinstance(contribs, list) and caps.get("ui_contributions"):
+        for c in contribs:
+            if isinstance(c, dict) and not (c.get("host_page") or c.get("url") or c.get("slot")):
+                warnings.append(f"ui contribution {c.get('id')!r} has no host_page/url/slot")
+
     if errors:
         for e in errors:
             print(f"FAIL: {e}", file=sys.stderr)
         return 1
+    for w in warnings:
+        print(f"WARN: {w}", file=sys.stderr)
+        if args.strict and "runtimes" in w:
+            return _die("strict: fix warnings above")
     _ok(f"{pid}@{plugin.get('version')} caps={sorted(k for k,v in caps.items() if v)}")
-    if args.strict:
-        runtimes = entry.get("runtimes") or []
-        if not runtimes:
-            print("WARN: entry.runtimes empty — declare [\"python\"] or [\"node\"]", file=sys.stderr)
     return 0
 
 
@@ -471,6 +587,12 @@ Then regenerate `registry/v1/index.json` (`python tools/build-index.py`) and ope
     print(f"download_url={url}")
     if sha256:
         print(f"sha256={sha256}")
+    print("")
+    print("Next:")
+    print(f"  1. gh release create {tag} .dist/{filename} --repo {repo} --title {tag}")
+    print(f"  2. Copy {out / 'plugins' / pid} into a fork of DirtyPlayBoy/orion-registry")
+    print("  3. In orion-registry: python tools/build-index.py && python tools/validate.py")
+    print("  4. Open a PR to DirtyPlayBoy/orion-registry")
     return 0
 
 
@@ -732,6 +854,66 @@ def cmd_dev(args: argparse.Namespace) -> int:
         return 0
 
 
+def cmd_examples(_args: argparse.Namespace) -> int:
+    rows: List[Tuple[str, str, str]] = []
+    seen = set()
+    for root in _example_roots():
+        if not root.is_dir():
+            continue
+        for child in sorted(root.iterdir()):
+            if not child.is_dir() or not (child / "plugin.toml").is_file():
+                continue
+            raw = _read_toml_simple(child / "plugin.toml")
+            plugin = raw.get("plugin") or {}
+            pid = str(plugin.get("id") or child.name)
+            if pid in seen:
+                continue
+            seen.add(pid)
+            rows.append((pid, str(plugin.get("name") or pid), str(child)))
+    if not rows:
+        print("(no examples found — clone DirtyPlayBoy/OrionPlugins or set ORION_PLUGINS_ROOT)")
+        return 0
+    for pid, name, path in rows:
+        print(f"{pid:20} {name}")
+        print(f"  {path}")
+    print("")
+    print("Install in Orion: Catalog -> Install example")
+    print("Clone: orion-plugin new my-copy --from hello-orion --author You")
+    return 0
+
+
+def cmd_call(args: argparse.Namespace) -> int:
+    host = (args.host or os.environ.get("ORION_HOST") or "http://127.0.0.1:4310").rstrip("/")
+    tool = (args.tool or "").strip()
+    if not tool:
+        return _die("tool name required (e.g. hello or plugin__hello-orion__hello)")
+    arguments: Dict[str, Any] = {}
+    if args.args_json:
+        try:
+            arguments = json.loads(args.args_json)
+        except Exception as exc:
+            return _die(f"invalid --args JSON: {exc}")
+    if tool.startswith("plugin__"):
+        body: Dict[str, Any] = {"fullName": tool, "arguments": arguments}
+    else:
+        pid = (args.plugin or "").strip()
+        if not pid:
+            # Infer from cwd plugin.toml
+            folder = Path(args.path or ".").expanduser().resolve()
+            raw = _read_toml_simple(folder / "plugin.toml") if (folder / "plugin.toml").is_file() else {}
+            pid = str((raw.get("plugin") or {}).get("id") or "")
+        if not pid:
+            return _die("pass --plugin <id> or run inside a plugin folder / use full plugin__id__tool name")
+        body = {"pluginId": pid, "tool": tool, "arguments": arguments}
+    try:
+        result = _orion_api(host, "POST", "/api/plugins/call-tool", body)
+    except Exception as exc:
+        return _die(f"call failed ({host}): {exc}\nIs Orion running? Did you `orion-plugin dev .`?")
+    _ok(f"tool {result.get('tool')}")
+    print(json.dumps(result.get("result"), ensure_ascii=False, indent=2))
+    return 0
+
+
 def cmd_init_ci(args: argparse.Namespace) -> int:
     folder = Path(args.path or ".").expanduser().resolve()
     if not (folder / "plugin.toml").is_file() and not args.force:
@@ -798,6 +980,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     n.add_argument("--description", default="")
     n.add_argument("--lang", default="python")
     n.add_argument("--template", default="tool", help="tool | ui-page | blank")
+    n.add_argument("--from", dest="from_example", default="", help="clone an official example (hello-orion, dice-roller)")
     n.add_argument("--force", action="store_true")
     n.set_defaults(func=cmd_new)
 
@@ -844,6 +1027,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     ic.add_argument("path", nargs="?", default=".")
     ic.add_argument("--force", action="store_true")
     ic.set_defaults(func=cmd_init_ci)
+
+    sub.add_parser("examples", help="list official example plugins").set_defaults(func=cmd_examples)
+
+    ca = sub.add_parser("call", help="call a tool on a running Orion plugin")
+    ca.add_argument("tool", help="tool name or plugin__id__tool")
+    ca.add_argument("--plugin", default="", help="plugin id when tool is short name")
+    ca.add_argument("--args", dest="args_json", default="{}", help='JSON arguments, default "{}"')
+    ca.add_argument("--host", default="")
+    ca.add_argument("--path", default=".", help="folder to infer plugin id from plugin.toml")
+    ca.set_defaults(func=cmd_call)
 
     args = p.parse_args(argv)
     return int(args.func(args) or 0)

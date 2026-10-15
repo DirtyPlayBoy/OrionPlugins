@@ -12,11 +12,13 @@
 pip install -e sdk/python
 pip install -e cli          # → команда orion-plugin
 orion-plugin new my-tool --author "Name" --dir ./my-tool --template tool
+# или клон примера:
+orion-plugin new my-copy --from hello-orion --author "Name"
 orion-plugin check ./my-tool --strict
 orion-plugin test ./my-tool --call
 orion-plugin dev ./my-tool              # Orion запущен (http://127.0.0.1:4310)
-# orion-plugin dev ./my-tool --watch    # hot reload
-orion-plugin init-ci ./my-tool          # GitHub Actions release
+orion-plugin call hello --plugin my-tool
+orion-plugin init-ci ./my-tool
 orion-plugin pack ./my-tool
 orion-plugin submit ./my-tool --repo Owner/Name
 ```
@@ -35,6 +37,7 @@ python -m orion_backend.modules.plugins.devtools …
 | `dice-roller` | `roll_dice` / `flip_coin` |
 
 Ставятся без режима разработчика: **Плагины → Каталог → Установить пример**.
+В UI на карточке плагина можно кликнуть tool ▶ для smoke-вызова.
 
 ## Шаблоны
 

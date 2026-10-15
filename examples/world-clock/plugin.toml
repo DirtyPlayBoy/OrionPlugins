@@ -1,0 +1,18 @@
+[plugin]
+id = "world-clock"
+name = "Мировое время"
+version = "0.1.0"
+description = "Текущее время в часовых поясах и разница между городами."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]

@@ -28,7 +28,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path .dist | Out-Null
-          $examples = @("calculator","unit-converter","quick-notes","dice-roller","hello-orion")
+          $examples = @("calculator","unit-converter","quick-notes","password-generator","world-clock","text-tools","color-tools","random-picker","dice-roller","hello-orion")
           foreach ($name in $examples) {
             $folder = Join-Path "examples" $name
             if (-not (Test-Path $folder)) { continue }

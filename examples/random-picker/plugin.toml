@@ -1,0 +1,18 @@
+[plugin]
+id = "random-picker"
+name = "Случайный выбор"
+version = "0.1.0"
+description = "Выбрать случайный вариант из списка или число из диапазона."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]

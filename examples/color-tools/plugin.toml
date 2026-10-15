@@ -1,0 +1,18 @@
+[plugin]
+id = "color-tools"
+name = "Цвета"
+version = "0.1.0"
+description = "Конвертация HEX ↔ RGB и контрастный текст для дизайна."
+author = "Orion Team"
+license = "MIT"
+
+[entry]
+command = "python"
+args = ["main.py"]
+cwd = "."
+runtimes = ["python"]
+
+[capabilities]
+tools = true
+
+[permissions]
